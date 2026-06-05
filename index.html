@@ -66,7 +66,14 @@
     let latestPosition = null; // 가장 최근 위치를 임시 저장
     
     const BUS_ID = "BUS_01"; 
-    const WS_SERVER_URL = "wss://knu-bus.onrender.com/ws/bus"; 
+    
+    // 현재 접속한 브라우저의 주소를 기반으로 웹소켓 프로토콜과 호스트를 자동으로 맞춤
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+
+    // 최종 웹소켓 주소 조합
+    const WS_SERVER_URL = `${wsProtocol}//${wsHost}/ws/bus`;
+
 
     function startTracking() {
         if (!navigator.geolocation) {
