@@ -46,6 +46,36 @@
         // 상, 우, 하, 좌 여백을 모두 0픽셀로 설정하여 꽉 차게 만듦
         map.setBounds(bounds, 0, 0, 0, 0);
 
+        // 순환버스 노선 경로 좌표 (새롬관 > 미래도서관 > ... > 새롬관)
+        // ※ 아래 좌표들은 강원대 캠퍼스 내 대략적인 위치이므로, 필요시 정확한 도로 좌표로 미세 조정해 주세요.
+        const routePath = [
+            new kakao.maps.LatLng(37.8745, 127.7440), // 새롬관
+            new kakao.maps.LatLng(37.8722, 127.7425), // 미래도서관
+            new kakao.maps.LatLng(37.8705, 127.7410), // 동생대2호관
+            new kakao.maps.LatLng(37.8680, 127.7415), // 경영대2호관
+            new kakao.maps.LatLng(37.8693, 127.7443), // 미래광장
+            new kakao.maps.LatLng(37.8675, 127.7455), // 백록관
+            new kakao.maps.LatLng(37.8745, 127.7440), // 새롬관(회차)
+            new kakao.maps.LatLng(37.8730, 127.7470), // 함인섭광장
+            new kakao.maps.LatLng(37.8693, 127.7443), // 미래광장
+            new kakao.maps.LatLng(37.8685, 127.7435), // 글로벌경영관
+            new kakao.maps.LatLng(37.8690, 127.7480), // 의생대
+            new kakao.maps.LatLng(37.8722, 127.7425), // 미래도서관
+            new kakao.maps.LatLng(37.8745, 127.7440)  // 새롬관
+        ];
+
+        // 지도에 노선을 표시할 폴리라인(선) 생성
+        const polyline = new kakao.maps.Polyline({
+            path: routePath,          // 선을 구성하는 좌표 배열
+            strokeWeight: 6,          // 선의 두께
+            strokeColor: '#FF3333',   // 선의 색깔 (눈에 띄는 빨간색)
+            strokeOpacity: 0.8,       // 선의 불투명도
+            strokeStyle: 'solid'      // 선의 스타일
+        });
+        
+        // 지도에 폴리라인 표시
+        polyline.setMap(map);
+
         const busMarkers = {};
 
         // 웹소켓 연결
