@@ -49,7 +49,7 @@
         const busMarkers = {};
 
         // 웹소켓 연결
-        const WS_SERVER_URL = "ws://localhost:8000/ws/viewer";
+        const WS_SERVER_URL = "ws://https://knu-bus.onrender.com/ws/viewer";
         const websocket = new WebSocket(WS_SERVER_URL);
 
         websocket.onopen = () => {
