@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학내 순환버스 위치 전송기</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #startBtn { background-color: #4CAF50; color: white; }
+        #stopBtn { background-color: #f44336; color: white; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #log {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #333;
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            background: #eee;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚌 순환버스 위치 전송</h2>
+    <p>현재 상태: <strong id="status" style="color: red;">정지됨</strong></p>
+    
+    <button id="startBtn" onclick="startTracking()">운행 시작 (전송)</button>
+    <button id="stopBtn" onclick="stopTracking()" disabled>운행 종료 (중지)</button>
+
+    <div id="log">대기 중...</div>
+</div>
+
+<script>
+    let watchId;
+    let sendInterval;
+    let websocket;
+    let latestPosition = null; // 가장 최근 위치를 임시 저장
+    
+    const BUS_ID = "BUS_01"; 
+    const WS_SERVER_URL = "ws://localhost:8000/ws/bus"; 
+
+    function startTracking() {
+        if (!navigator.geolocation) {
+            alert("이 브라우저에서는 위치 정보(GPS)를 지원하지 않습니다.");
+            return;
+        }
+
+        connectWebSocket();
+
+        // 1. 브라우저의 연속 위치 추적 시작 (권한은 여기서 한 번만 물어봄)
+        watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                // 위치가 변경될 때마다 최신 좌표 갱신
+                latestPosition = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+            }, 
+            (error) => {
+                addLog(`위치 수집 실패 (에러코드: ${error.code})`);
+            }, 
+            {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 5000
+            }
+        );
+
+        // 2. 3초(3000ms)마다 최신 좌표를 서버로 전송 (Heartbeat 방식)
+        sendInterval = setInterval(() => {
+            if (latestPosition && websocket && websocket.readyState === WebSocket.OPEN) {
+                const payload = {
+                    bus_id: BUS_ID,
+                    lat: latestPosition.lat,
+                    lng: latestPosition.lng,
+                    time: new Date().toISOString()
+                };
+                websocket.send(JSON.stringify(payload));
+                addLog(`전송 완료: ${latestPosition.lat.toFixed(5)}, ${latestPosition.lng.toFixed(5)}`);
+            }
+        }, 3000);
+
+        // UI 업데이트
+        document.getElementById("status").innerText = "전송 중...";
+        document.getElementById("status").style.color = "green";
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("stopBtn").disabled = false;
+        addLog("운행(위치 전송)을 시작합니다.");
+    }
+
+    function stopTracking() {
+        // 위치 추적 및 전송 중지
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        if (sendInterval) clearInterval(sendInterval);
+        if (websocket && websocket.readyState === WebSocket.OPEN) websocket.close();
+        
+        latestPosition = null;
+
+        // UI 업데이트
+        document.getElementById("status").innerText = "정지됨";
+        document.getElementById("status").style.color = "red";
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled = true;
+        addLog("운행(위치 전송)을 종료했습니다.");
+    }
+
+    function connectWebSocket() {
+        websocket = new WebSocket(WS_SERVER_URL);
+        websocket.onopen = () => addLog("서버와 연결되었습니다.");
+        websocket.onclose = () => addLog("서버와 연결이 끊어졌습니다.");
+        websocket.onerror = (error) => addLog("서버 연결 오류 발생!");
+    }
+
+    function addLog(message) {
+        const logDiv = document.getElementById("log");
+        const time = new Date().toLocaleTimeString();
+        logDiv.innerHTML = `[${time}] ${message}<br>` + logDiv.innerHTML;
+    }
+</script>
+
+</body>
+</html>

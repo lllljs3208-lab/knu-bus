@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>강원대 순환버스 실시간 위치</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+        .status-overlay {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: rgba(255, 255, 255, 0.9); padding: 15px;
+            border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-family: 'Malgun Gothic', sans-serif; font-size: 14px;
+        }
+        .badge { display: inline-block; padding: 4px 8px; background: #2B499A; color: white; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="status-overlay">
+    <div><span class="badge">LIVE</span> <strong>백령공촌 순환버스 위치</strong></div>
+    <div id="info" style="margin-top: 8px; color: #555;">버스의 위치를 기다리는 중...</div>
+</div>
+
+<div id="map"></div>
+
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=2d8e9353f516e15fada1a616c594fb0b&autoload=false"></script>
+
+<script>
+    kakao.maps.load(function() {
+        
+        const mapContainer = document.getElementById('map');
+        const mapOption = { 
+            center: new kakao.maps.LatLng(37.8693, 127.7443), 
+            level: 4 
+        }; 
+        const map = new kakao.maps.Map(mapContainer, mapOption);
+
+        // 가로폭(경도) 범위를 127.7360~127.7520에서 127.7390~127.7490으로 좁힘
+        const sw = new kakao.maps.LatLng(37.8620, 127.7390); 
+        const ne = new kakao.maps.LatLng(37.8760, 127.7490);
+        const bounds = new kakao.maps.LatLngBounds(sw, ne);
+        
+        // 어떤 화면 크기든 강원대 캠퍼스 영역이 딱 맞게 들어오도록 지도를 조절
+        // 상, 우, 하, 좌 여백을 모두 0픽셀로 설정하여 꽉 차게 만듦
+        map.setBounds(bounds, 0, 0, 0, 0);
+
+        const busMarkers = {};
+
+        // 웹소켓 연결
+        const WS_SERVER_URL = "ws://localhost:8000/ws/viewer";
+        const websocket = new WebSocket(WS_SERVER_URL);
+
+        websocket.onopen = () => {
+            document.getElementById("info").innerText = "서버와 연결되었습니다. 운행 정보를 수신합니다.";
+        };
+
+        websocket.onmessage = (event) => {
+            const busData = JSON.parse(event.data);
+            const { bus_id, lat, lng, time } = busData;
+
+            const newPos = new kakao.maps.LatLng(lat, lng);
+            const localTime = new Date(time).toLocaleTimeString();
+
+            document.getElementById("info").innerText = `[${localTime}] ${bus_id} 운행 중`;
+
+            if (busMarkers[bus_id]) {
+                // [변경] 바로 setPosition을 하지 않고, 부드러운 애니메이션 함수를 호출합니다.
+                const startPos = busMarkers[bus_id].getPosition();
+                animateMarker(busMarkers[bus_id], startPos, newPos, 3000); // 3000ms(3초) 동안 이동
+            } else {
+                // 첫 등장할 때는 마커 생성
+                const markerImage = new kakao.maps.MarkerImage(
+                    'https://cdn-icons-png.flaticon.com/512/3448/3448339.png', 
+                    new kakao.maps.Size(40, 40)
+                );
+
+                const marker = new kakao.maps.Marker({
+                    position: newPos,
+                    image: markerImage,
+                    map: map
+                });
+                
+                busMarkers[bus_id] = marker;
+            }
+        };
+
+        // [추가] 마커를 부드럽게 이동시키는 애니메이션 함수 (RequestAnimationFrame 활용)
+        function animateMarker(marker, startPos, endPos, duration) {
+            const startTime = performance.now();
+            const startLat = startPos.getLat();
+            const startLng = startPos.getLng();
+            const endLat = endPos.getLat();
+            const endLng = endPos.getLng();
+
+            function update(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1); // 0에서 1까지 진행도
+
+                // 시작점과 목적지 사이의 현재 시점 좌표 계산 (선형 보간)
+                const currentLat = startLat + (endLat - startLat) * progress;
+                const currentLng = startLng + (endLng - startLng) * progress;
+
+                marker.setPosition(new kakao.maps.LatLng(currentLat, currentLng));
+
+                if (progress < 1) {
+                    requestAnimationFrame(update); // 다음 프레임 요청 (초당 60회 부드럽게 갱신)
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        websocket.onclose = () => {
+            document.getElementById("info").innerText = "서버와의 연결이 끊어졌습니다.";
+        };
+        
+        websocket.onerror = () => {
+            document.getElementById("info").innerText = "에러가 발생했습니다.";
+        };
+    });
+</script>
+</body>
+</html>
